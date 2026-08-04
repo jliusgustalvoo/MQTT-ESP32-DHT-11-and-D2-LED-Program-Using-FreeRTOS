@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT IoT Dashboard</title>
+    <!-- Memanggil pelayan khusus MQTT untuk Browser (Paho MQTT) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #222; color: white; display: flex; justify-content: center; padding-top: 50px; }
+        .dashboard { background: #333; padding: 20px; border-radius: 10px; width: 300px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .suhu-box { background: #444; padding: 20px; border-radius: 10px; margin: 20px 0; font-size: 30px; font-weight: bold; color: #4CAF50; }
+        button { width: 45%; padding: 10px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 5px; }
+        .btn-on { background: #4CAF50; color: white; }
+        .btn-off { background: #F44336; color: white; }
+        #status-koneksi { font-size: 12px; color: #aaa; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <h2>Pusat Kendali Pabrik</h2>
+    
+    <div>Suhu Mesin Saat Ini:</div>
+    <!-- Angka ini akan berubah otomatis dari Broker -->
+    <div class="suhu-box" id="nilai-suhu">-- °C</div>
+
+    <div>Kontrol Mesin:</div>
+    <div style="margin-top: 10px;">
+        <button class="btn-on" onclick="kirimPerintah('ON')">ON</button>
+        <button class="btn-off" onclick="kirimPerintah('OFF')">OFF</button>
+    </div>
+
+    <div id="status-koneksi">Menghubungkan ke Broker...</div>
+</div>
+
+<script>
+    // 1. Siapkan Radio WebSockets ke HiveMQ (Port 8884 khusus untuk Browser)
+    var clientID = "WebDashboard_" + Math.floor(Math.random() * 10000);
+    var mqtt = new Paho.MQTT.Client("broker.hivemq.com", 8000, "/mqtt", clientID);
+
+    // 2. Jika ada pesan yang masuk (Subscribe)
+    mqtt.onMessageArrived = function (pesan) {
+        if(pesan.destinationName === "julius/sensor/suhu") {
+            // Bongkar JSON dan ubah angka di layar
+            let data = JSON.parse(pesan.payloadString);
+            document.getElementById("nilai-suhu").innerText = data.suhu + " °C";
+        }
+    };
+
+    // 3. Fungsi saat terhubung ke Broker
+    mqtt.connect({
+        onSuccess: function () {
+            document.getElementById("status-koneksi").innerText = "Terhubung ke Menara Utama!";
+            document.getElementById("status-koneksi").style.color = "#4CAF50";
+            
+            // Langsung pasang telinga untuk topik suhu
+            mqtt.subscribe("julius/sensor/suhu");
+        },
+        onFailure: function (error) {
+            document.getElementById("status-koneksi").innerText = "Gagal Konek!";
+            document.getElementById("status-koneksi").style.color = "#F44336";
+        }
+    });
+
+    // 4. Fungsi untuk tombol ON/OFF (Publish)
+    function kirimPerintah(aksi) {
+        let pesan = new Paho.MQTT.Message(aksi);
+        pesan.destinationName = "julius/kontrol/lampu";
+        mqtt.send(pesan);
+    }
+</script>
+
+</body>
+</html>
